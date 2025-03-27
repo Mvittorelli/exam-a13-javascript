@@ -1,0 +1,49 @@
+name: Running Testinette using Vitest
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  run-testinette:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ghcr.io/edenschoolfrance/exam_a1-3javascript:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
+      volumes:
+        - ${{ github.workspace }}:/app/src
+      options: --cpus 1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Remove optional export keyword
+        run: sed -i 's/export function/function/g' /app/src/*
+      - name: Add export keyword
+        run: sed -i 's/function/export function/g' /app/src/*
+      - name: Running testinette
+        run: cd /app && npm run test
+  remove-workflow:
+    if: always()
+    needs: run-testinette
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Delete workflow after execution
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
+          rm -f .github/workflows/run-testinette.yml
+          git add .github/workflows/run-testinette.yml
+          git commit -m "feat(cicd): delete workflow after test execution"
+          git push
